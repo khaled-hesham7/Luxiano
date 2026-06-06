@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\OrderStoreRequest;
 use App\Http\Resources\OrderResource; // استدعاء الريسورس الجديد هنا
+use App\Models\Address;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\ProductVariant;
+use App\Models\ShippingRate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -63,8 +65,9 @@ class OrderController extends Controller
                 ];
             }
 
-            // حسبة الشحن الافتراضية
-            $shippingCost = 50.00;
+            // جلب العنوان لحساب تكلفة الشحن ديناميكياً بناءً على المحافظة
+            $address = Address::find($request->address_id);
+            $shippingCost = $this->calculateShippingCost($address->governorate);
             $total = $subtotal + $shippingCost;
 
             // 3. إنشاء الطلب الرئيسي في جدول orders
@@ -113,5 +116,18 @@ class OrderController extends Controller
                 'error'   => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * حساب تكلفة الشحن بناءً على المحافظة من الداتابيز.
+     */
+    private function calculateShippingCost(string $governorate): float
+    {
+        $governorateKey = strtolower(trim($governorate));
+
+        // الاستعلام عن السعر المخصص للمحافظة في الداتابيز
+        $rate = ShippingRate::where('governorate', $governorateKey)->first();
+
+        return $rate ? (float) $rate->cost : 70.00; // 70 جنيه كشحن افتراضي لو المحافظة غير مسجلة
     }
 }

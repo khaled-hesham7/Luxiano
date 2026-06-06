@@ -5,6 +5,7 @@ namespace App\Http\Requests\Api;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class OrderStoreRequest extends FormRequest
 {
@@ -14,7 +15,10 @@ class OrderStoreRequest extends FormRequest
     {
         return [
             // نتأكد إن العنوان اللي العميل اختاره موجود فعلاً في جدول العناوين ومملوك ليه
-            'address_id'     => 'required|exists:addresses,id',
+            'address_id'     => [
+                'required',
+                Rule::exists('addresses', 'id')->where('user_id', $this->user()->id)
+            ],
             'payment_method' => 'required|in:COD,Card', // كاش أو فيزا
         ];
     }

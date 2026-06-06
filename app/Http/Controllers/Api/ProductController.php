@@ -14,7 +14,7 @@ class ProductController extends Controller
     public function index(ProductFilterRequest $request)
     {
         // استخدام الـ Eager Loading لمنع مشكلة الـ N+1 Query الشهيرة
-        $query = Product::with(['category', 'variants.attributeValues.attribute'])->where('status', 'active');
+        $query = Product::with(['category', 'variants.attributeValues.attribute', 'media', 'variants.media'])->where('status', 'active');
 
         // فلترة بالقسم
         if ($request->has('category_slug')) {
@@ -48,7 +48,7 @@ class ProductController extends Controller
     // 2. عرض تفاصيل منتج واحد محدد بالـ Variants والمخزن بتاعه
     public function show($slug)
     {
-        $product = Product::with(['category', 'variants.attributeValues.attribute'])
+        $product = Product::with(['category', 'variants.attributeValues.attribute', 'media', 'variants.media'])
             ->where('slug', $slug)
             ->where('status', 'active')
             ->firstOrFail();
