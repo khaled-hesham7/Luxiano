@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\OrderStoreRequest;
 use App\Http\Resources\OrderResource; // استدعاء الريسورس الجديد هنا
 use App\Models\Address;
+use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\ProductVariant;
@@ -68,21 +69,41 @@ class OrderController extends Controller
             // جلب العنوان لحساب تكلفة الشحن ديناميكياً بناءً على المحافظة
             $address = Address::find($request->address_id);
             $shippingCost = $this->calculateShippingCost($address->governorate);
-            $total = $subtotal + $shippingCost;
+
+            // فحص وحساب خصم الكوبون لو تم إرساله
+            $discount = 0.00;
+            $coupon = null;
+            if ($request->filled('coupon_code')) {
+                $coupon = Coupon::where('code', $request->coupon_code)->first();
+                if (!$coupon || !$coupon->isValid($subtotal)) {
+                    return response()->json([
+                        'message' => 'عفواً، كود الخصم هذا غير صالح للاستخدام حالياً أو لم يصل للحد الأدنى المطلوب.'
+                    ], 422);
+                }
+                $discount = $coupon->calculateDiscount($subtotal);
+            }
+
+            $total = $subtotal - $discount + $shippingCost;
 
             // 3. إنشاء الطلب الرئيسي في جدول orders
             $order = Order::create([
                 'user_id'        => $user->id,
                 'address_id'     => $request->address_id,
                 'order_number'   => 'LUX-' . date('Ymd') . '-' . strtoupper(Str::random(6)),
+                'coupon_code'    => $coupon ? $coupon->code : null,
                 'subtotal'       => $subtotal,
                 'shipping_cost'  => $shippingCost,
-                'discount'       => 0.00,
+                'discount'       => $discount,
                 'total'          => $total,
                 'payment_method' => $request->payment_method,
                 'payment_status' => 'pending',
                 'status'         => 'pending'
             ]);
+
+            // زيادة عداد استخدام الكوبون
+            if ($coupon) {
+                $coupon->increment('usage_count');
+            }
 
             // 4. تسجيل عناصر الطلب وتنزيل المخزن فعلياً
             foreach ($orderItemsData as $item) {
@@ -116,6 +137,27 @@ class OrderController extends Controller
                 'error'   => $e->getMessage()
             ], 500);
         }
+    }
+
+    // عرض قائمة الأوردرات الخاصة بالعميل الحالي
+    public function index(Request $request)
+    {
+        $orders = $request->user()->orders()
+            ->with(['items.variant.product', 'items.variant.attributeValues', 'address'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return OrderResource::collection($orders);
+    }
+
+    // عرض تفاصيل أوردر محدد يخص العميل الحالي
+    public function show(Request $request, $id)
+    {
+        $order = $request->user()->orders()
+            ->with(['items.variant.product', 'items.variant.attributeValues', 'address'])
+            ->findOrFail($id);
+
+        return new OrderResource($order);
     }
 
     /**

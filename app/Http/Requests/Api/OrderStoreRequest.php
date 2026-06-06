@@ -20,6 +20,7 @@ class OrderStoreRequest extends FormRequest
                 Rule::exists('addresses', 'id')->where('user_id', $this->user()->id)
             ],
             'payment_method' => 'required|in:COD,Card', // كاش أو فيزا
+            'coupon_code'    => 'nullable|string|exists:coupons,code',
         ];
     }
 

@@ -12,6 +12,7 @@ class OrderResource extends JsonResource
         return [
             'id'             => $this->id,
             'order_number'   => $this->order_number,
+            'coupon_code'    => $this->coupon_code,
             'status'         => $this->status, // pending, shipped...
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
